@@ -1,6 +1,18 @@
-import { Button, Container, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Box, CircularProgress } from "@mui/material";
-import React, { useEffect, useState } from "react";
-import { useHistory } from "react-router-dom";
+import {
+    Box,
+    CircularProgress,
+    Container,
+    Paper,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TablePagination,
+    TableRow
+} from "@mui/material";
+import React, {useEffect, useState} from "react";
+import {useHistory} from "react-router-dom";
 
 interface Column {
     id: "title" | "url" | "created_at" | "author",
@@ -10,10 +22,10 @@ interface Column {
 }
 
 const columns: readonly Column[] = [
-    { id: "title", label: "Title", minWidth: 170 },
-    { id: "url", label: "URL", minWidth: 150 },
-    { id: "created_at", label: "Created At", minWidth: 100 },
-    { id: "author", label: "Author", minWidth: 100 },
+    {id: "title", label: "Title", minWidth: 170},
+    {id: "url", label: "URL", minWidth: 150},
+    {id: "created_at", label: "Created At", minWidth: 100},
+    {id: "author", label: "Author", minWidth: 100},
 ];
 
 export interface InitPost {
@@ -29,34 +41,42 @@ const Home: React.FC = () => {
 
     // pagination
     const [page, setPage] = useState<number>(0);
+
+    // Local Pagination
+    const [localPage, setLocalPage] = useState<number>(0);
+    const rowsPerPage: number = 13;
     const [totalElements, setTotalElements] = useState<number>(0);
 
     const [loading, setLoading] = useState<boolean>(false);
 
     const [posts, setPosts] = useState<InitPost[]>([]);
 
-    const [myInterval, setMyInterval] = useState<any>(null);
-
     useEffect(() => {
-        getPosts(0);
 
         const interval = setInterval(() => {
-            getPosts(0);
+            setPage(_page => _page + 1);
         }, 10000);
 
-        setMyInterval(interval);
-
-        return () => clearInterval(myInterval);
+        return () => clearInterval(interval);
     }, []);
 
-    const getPosts = async (pageNumber: number) => {
+    useEffect(() => {
+
+        getPosts();
+
+    }, [page])
+
+    const getPosts = async () => {
+
         try {
             setLoading(true);
 
-            const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?tags=story&page=${pageNumber}`);
+            const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?tags=story&page=${page}`);
             const data = await res.json();
-            setPosts(data.hits);
-            setTotalElements(data.nbHits);
+
+            const _posts = [...posts, ...data.hits];
+            setPosts(_posts);
+            setTotalElements(_posts.length);
 
             setLoading(false);
         } catch (error) {
@@ -66,18 +86,7 @@ const Home: React.FC = () => {
     }
 
     const handleChangePage = async (event: unknown, newPage: number) => {
-
-        if (newPage === 0) {
-            const interval = setInterval(() => {
-                getPosts(0);
-            }, 10000);
-            setMyInterval(interval);
-        } else {
-            clearInterval(myInterval);
-        }
-
-        setPage(newPage);
-        await getPosts(newPage);
+        setLocalPage(newPage);
     }
 
     const getDetails = (post: InitPost) => {
@@ -90,36 +99,40 @@ const Home: React.FC = () => {
     return (
         <>
             <h2>Post List</h2>
-            <Container style={{ maxWidth: "100%" }}>
+            {
+                loading ? <Box sx={{display: 'flex', justifyContent: "center", alignItems: "center"}}>
+                    <CircularProgress size={20}/> Trying to load new posts...
+                </Box> : <></>
+            }
+            <Container style={{maxWidth: "100%"}}>
                 <Paper>
-                    <TableContainer sx={{ maxHeight: 450 }}>
-                        {
-                            loading ? <Box sx={{ display: 'flex', justifyContent: "center", alignItems: "center" }}>
-                                <CircularProgress />
-                            </Box> : <Table stickyHeader aria-label="sticky table">
-                                <TableHead>
-                                    <TableRow>
-                                        {
-                                            columns.map(column =>
-                                                <TableCell
-                                                    key={column.id}
-                                                    align={column.align}
-                                                    style={{ minWidth: column.minWidth }}
-                                                >
-                                                    {column.label}
-                                                </TableCell>
-                                            )
-                                        }
-                                        <TableCell />
-                                    </TableRow>
-                                </TableHead>
-
-                                <TableBody>
+                    <TableContainer sx={{height: "768px"}}>
+                        <Table stickyHeader aria-label="sticky table">
+                            <TableHead>
+                                <TableRow>
                                     {
-                                        posts.map((row, index) => {
+                                        columns.map(column =>
+                                            <TableCell
+                                                key={column.id}
+                                                align={column.align}
+                                                style={{minWidth: column.minWidth}}
+                                            >
+                                                {column.label}
+                                            </TableCell>
+                                        )
+                                    }
+                                </TableRow>
+                            </TableHead>
+
+                            <TableBody>
+                                {
+                                    posts
+                                        .slice(localPage * rowsPerPage, localPage * rowsPerPage + rowsPerPage)
+                                        .map((row, index) => {
                                             return (
                                                 <TableRow
                                                     key={index}
+                                                    onClick={() => getDetails(row)}
                                                 >
                                                     {
                                                         columns.map(column => {
@@ -133,32 +146,25 @@ const Home: React.FC = () => {
                                                             )
                                                         })
                                                     }
-                                                    <TableCell>
-                                                        <Button
-                                                            size="small"
-                                                            variant="contained"
-                                                            onClick={() => getDetails(row)}
-                                                        >
-                                                            Details
-                                                        </Button>
-                                                    </TableCell>
                                                 </TableRow>
                                             )
                                         })
-                                    }
-                                </TableBody>
-                            </Table>
-                        }
+                                }
+                            </TableBody>
+                        </Table>
                     </TableContainer>
 
-                    <TablePagination
-                        rowsPerPageOptions={[]}
-                        component="div"
-                        count={totalElements}
-                        rowsPerPage={20}
-                        page={page}
-                        onPageChange={handleChangePage}
-                    />
+                    {
+                        posts.length > 13 && <TablePagination
+                            rowsPerPageOptions={[]}
+                            component="div"
+                            count={totalElements}
+                            rowsPerPage={rowsPerPage}
+                            page={localPage}
+                            onPageChange={handleChangePage}
+                        />
+                    }
+
                 </Paper>
             </Container>
         </>
